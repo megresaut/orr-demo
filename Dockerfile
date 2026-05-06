@@ -44,4 +44,4 @@ RUN npm run build
 ENV NODE_ENV=production
 EXPOSE 8080
 
-CMD ["sh", "-c", "npm run release && npm run start"]
+CMD ["sh", "-c", "echo '[boot] migrate' && node backend/scripts/migrate.js && (if [ \"$SEED_DEMO\" = \"1\" ]; then echo '[boot] seeding'; node backend/scripts/seed.js; else echo '[boot] skipping seed'; fi) && echo '[boot] starting server' && node backend/server.js"]
