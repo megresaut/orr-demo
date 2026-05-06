@@ -1,0 +1,19 @@
+{
+  "name": "orr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ORR — Operation, Resource, Revenue. Single-service deploy: backend serves the built frontend.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build && npm --prefix backend install",
+    "migrate": "npm --prefix backend run migrate",
+    "seed": "node backend/scripts/seed.js",
+    "release": "npm run migrate && (test \"$SEED_DEMO\" = \"1\" && npm run seed || echo '[release] skipping seed (set SEED_DEMO=1 to run it)')",
+    "start": "node backend/server.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev"
+  }
+}

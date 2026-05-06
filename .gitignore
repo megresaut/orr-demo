@@ -1,0 +1,14 @@
+node_modules
+.env
+.env.local
+.DS_Store
+
+# Build outputs
+frontend/dist
+
+# Generated artifacts (regenerated on demand; kept out of source control)
+backend/invoices/*.xlsx
+backend/invoices/*.pdf
+backend/uploads/*
+!backend/invoices/.gitkeep
+!backend/uploads/.gitkeep

@@ -1,0 +1,9 @@
+node_modules
+.env
+invoices/*.xlsx
+invoices/*.pdf
+uploads/*
+previews/*
+!invoices/.gitkeep
+!uploads/.gitkeep
+!previews/.gitkeep

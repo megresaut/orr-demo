@@ -1,0 +1,27 @@
+{
+  "name": "orr-backend",
+  "version": "0.1.0",
+  "description": "ORR (Operation, Resource, Revenue) — multi-tenant SaaS MVP backend",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node scripts/migrate.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.911.0",
+    "@aws-sdk/s3-request-presigner": "^3.911.0",
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.10.1",
+    "pg": "^8.16.0",
+    "puppeteer": "^24.9.0"
+  }
+}

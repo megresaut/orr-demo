@@ -1,0 +1,6 @@
+node_modules
+.env
+invoices
+previews
+uploads
+*.log
