@@ -10,5 +10,8 @@ router.get('/:id', c.get);
 router.patch('/:id', c.update);
 router.delete('/:id', c.remove);
 router.put('/:id/rates', c.replaceRates);
+router.post('/:id/tasks', c.addTask);
+router.post('/:id/rates', c.addRate);
+router.delete('/:id/rates/:rateId', c.removeRate);
 
 module.exports = router;

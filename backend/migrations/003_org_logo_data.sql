@@ -1,0 +1,3 @@
+ALTER TABLE organizations
+  ADD COLUMN IF NOT EXISTS logo_data BYTEA,
+  ADD COLUMN IF NOT EXISTS logo_mime TEXT;

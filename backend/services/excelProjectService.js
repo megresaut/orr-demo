@@ -232,4 +232,57 @@ async function parseProjectTasks(filePath, sheetNameHint = null) {
   return tasks;
 }
 
-module.exports = { parseProjectOnboarding, parseProjectTasks };
+/**
+ * Parse a resources/labor-rates sheet — either a stand-alone workbook with
+ * columns "Resource Role" / "Resource Name" / "Rate", or the "Resources and Labor"
+ * block from the onboarding template.
+ */
+async function parseProjectRates(filePath, sheetNameHint = null) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(filePath);
+  const sheet = (sheetNameHint && wb.getWorksheet(sheetNameHint))
+    || wb.worksheets.find(s => /resource|labor|rate/i.test(s.name))
+    || wb.worksheets[0];
+
+  const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+  // First, try locating a "Resources and Labor" anchor (onboarding-style block).
+  let anchor = findRow(sheet, r => /resources and labor|resources & labor/i.test(cellText(r.getCell(1))));
+  let headerRow = -1;
+  if (anchor > 0) headerRow = anchor + 1;
+
+  // Otherwise look for a header row that contains "Resource Role" or "Role".
+  if (headerRow < 0) {
+    headerRow = findRow(sheet, r => {
+      for (let c = 1; c <= 12; c++) {
+        const k = norm(cellText(r.getCell(c)));
+        if (/resource role|^role$/.test(k)) return true;
+      }
+      return false;
+    });
+  }
+  if (headerRow < 0) return [];
+
+  const hr = sheet.getRow(headerRow);
+  let roleCol = 0, nameCol = 0, rateCol = 0;
+  for (let c = 1; c <= 12; c++) {
+    const k = norm(cellText(hr.getCell(c)));
+    if (/resource role|^role$/.test(k)) roleCol = c;
+    else if (/resource name|^name$/.test(k)) nameCol = c;
+    else if (/^rate$|billing rate|hourly rate/.test(k)) rateCol = c;
+  }
+  if (!roleCol || !rateCol) return [];
+
+  const rates = [];
+  for (let r = headerRow + 1; r < headerRow + 200; r++) {
+    const dr = sheet.getRow(r);
+    const role = cellText(dr.getCell(roleCol));
+    if (!role || /^eg\.?/i.test(role)) continue;
+    const rate = cellNumber(dr.getCell(rateCol));
+    const name = nameCol ? cellText(dr.getCell(nameCol)) : null;
+    rates.push({ role, name, rate });
+  }
+  return rates;
+}
+
+module.exports = { parseProjectOnboarding, parseProjectTasks, parseProjectRates };

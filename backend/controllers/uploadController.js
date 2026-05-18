@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const dbPromise = require('../db');
-const { parseProjectOnboarding, parseProjectTasks } = require('../services/excelProjectService');
+const { parseProjectOnboarding, parseProjectTasks, parseProjectRates } = require('../services/excelProjectService');
 const { parseTimesheet } = require('../services/excelTimesheetService');
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads');
@@ -104,6 +104,46 @@ exports.tasks = async (req, res, next) => {
     } catch (e) { await db.query('ROLLBACK'); throw e; }
     finally { fs.unlink(req.file.path, () => {}); }
     res.json({ inserted: tasks.length, tasks });
+  } catch (err) { next(err); }
+};
+
+exports.rates = async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'file required' });
+    const db = await dbPromise;
+    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
+      [req.params.projectId, req.orgId]);
+    if (!proj.rows[0]) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const rates = await parseProjectRates(req.file.path, req.body.sheetName || null);
+    if (!rates.length) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Could not find any resources in the workbook (need Resource Role / Resource Name / Rate columns).' });
+    }
+
+    const mode = req.body.mode === 'replace' ? 'replace' : 'append';
+    await db.query('BEGIN');
+    try {
+      if (mode === 'replace') {
+        await db.query(`DELETE FROM project_rates WHERE project_id = $1`, [req.params.projectId]);
+      }
+      let inserted = 0;
+      for (const r of rates) {
+        if (!r.role) continue;
+        await db.query(
+          `INSERT INTO project_rates (org_id, project_id, role, name, rate)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [req.orgId, req.params.projectId, r.role, r.name || null, r.rate || 0]
+        );
+        inserted++;
+      }
+      await db.query('COMMIT');
+      res.json({ inserted, mode, rates });
+    } catch (e) { await db.query('ROLLBACK'); throw e; }
+    finally { fs.unlink(req.file.path, () => {}); }
   } catch (err) { next(err); }
 };
 

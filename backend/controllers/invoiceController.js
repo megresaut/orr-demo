@@ -137,23 +137,30 @@ exports.generate = async (req, res, next) => {
       await db.query('COMMIT');
     } catch (e) { await db.query('ROLLBACK'); throw e; }
 
-    if (send && payload.client?.email) {
-      const attachments = [];
-      if (fs.existsSync(xlsxPath)) attachments.push({ filename: path.basename(xlsxPath), path: xlsxPath });
-      if (fs.existsSync(pdfPath)) attachments.push({ filename: path.basename(pdfPath), path: pdfPath });
-      const result = await sendEmail({
-        to: payload.client.email,
-        subject: `Invoice ${invoiceNumber} from ${org.name}`,
-        text: `Please find attached invoice ${invoiceNumber} for ${bundle.project.name}.\nTotal: $${payload.total.toFixed(2)}`,
-        attachments,
-      });
-      if (result.sent) {
-        await db.query(`UPDATE invoices SET status = 'sent', sent_at = NOW() WHERE id = $1`, [invoice.id]);
-        invoice.status = 'sent';
+    let emailStatus = null;
+    if (send) {
+      const recipient = payload.client?.email || null;
+      if (!recipient) {
+        emailStatus = { sent: false, recipient: null, reason: 'no_client_email' };
+      } else {
+        const attachments = [];
+        if (fs.existsSync(xlsxPath)) attachments.push({ filename: path.basename(xlsxPath), path: xlsxPath });
+        if (fs.existsSync(pdfPath)) attachments.push({ filename: path.basename(pdfPath), path: pdfPath });
+        const result = await sendEmail({
+          to: recipient,
+          subject: `Invoice ${invoiceNumber} from ${org.name}`,
+          text: `Please find attached invoice ${invoiceNumber} for ${bundle.project.name}.\nTotal: $${payload.total.toFixed(2)}`,
+          attachments,
+        });
+        if (result.sent) {
+          await db.query(`UPDATE invoices SET status = 'sent', sent_at = NOW() WHERE id = $1`, [invoice.id]);
+          invoice.status = 'sent';
+        }
+        emailStatus = { sent: result.sent, recipient, reason: result.reason || null };
       }
     }
 
-    res.json({ invoice, payload });
+    res.json({ invoice, payload, email: emailStatus });
   } catch (err) { next(err); }
 };
 

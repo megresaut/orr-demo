@@ -105,6 +105,65 @@ exports.remove = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+exports.addTask = async (req, res, next) => {
+  try {
+    const db = await dbPromise;
+    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
+      [req.params.id, req.orgId]);
+    if (!proj.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    const b = req.body || {};
+    if (!b.task_name) return res.status(400).json({ error: 'task_name is required' });
+
+    const { rows } = await db.query(
+      `INSERT INTO project_tasks
+        (org_id, project_id, task_code, task_name, assignee_name,
+         start_date, due_date, budget_hours, billing_rate)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [
+        req.orgId, req.params.id,
+        b.task_code || null, b.task_name, b.assignee_name || null,
+        b.start_date || null, b.due_date || null,
+        Number(b.budget_hours) || 0, Number(b.billing_rate) || 0,
+      ]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.addRate = async (req, res, next) => {
+  try {
+    const db = await dbPromise;
+    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
+      [req.params.id, req.orgId]);
+    if (!proj.rows[0]) return res.status(404).json({ error: 'Project not found' });
+
+    const b = req.body || {};
+    if (!b.role) return res.status(400).json({ error: 'role is required' });
+
+    const { rows } = await db.query(
+      `INSERT INTO project_rates (org_id, project_id, role, name, rate)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, role, name, rate`,
+      [req.orgId, req.params.id, b.role, b.name || null, Number(b.rate) || 0]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.removeRate = async (req, res, next) => {
+  try {
+    const db = await dbPromise;
+    const { rowCount } = await db.query(
+      `DELETE FROM project_rates WHERE id = $1 AND project_id = $2 AND org_id = $3`,
+      [req.params.rateId, req.params.id, req.orgId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Rate not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+};
+
 exports.replaceRates = async (req, res, next) => {
   try {
     const db = await dbPromise;

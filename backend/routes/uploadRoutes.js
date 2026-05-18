@@ -18,6 +18,7 @@ const router = express.Router();
 router.use(requireAuth);
 router.post('/onboarding', upload.single('file'), c.onboarding);
 router.post('/tasks/:projectId', upload.single('file'), c.tasks);
+router.post('/rates/:projectId', upload.single('file'), c.rates);
 router.post('/timesheet/:projectId', upload.single('file'), c.timesheet);
 router.post('/timesheet/:projectId/manual', c.timesheetManual);
 

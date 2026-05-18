@@ -62,7 +62,10 @@ export default function NewProject() {
             <div className="field"><label>Client phone</label><input name="client_phone" /></div>
             <div className="field"><label>Start date</label><input name="start_date" type="date" /></div>
             <div className="field"><label>End date</label><input name="end_date" type="date" /></div>
-            <div className="field"><label>Contract amount</label><input name="contract_amount" type="number" step="0.01" /></div>
+            <div className="field">
+              <label>Contract amount</label>
+              <div className="input-prefix"><span>$</span><input name="contract_amount" type="number" step="0.01" min="0" placeholder="0.00" /></div>
+            </div>
             <div className="field"><label>Overhead multiplier</label><input name="overhead_multiplier" type="number" step="0.01" defaultValue="1.66" /></div>
             <div className="field"><label>Profit %</label><input name="profit_pct" type="number" step="0.1" defaultValue="10" /></div>
             <div className="field"><label>Invoice sequence</label><input name="invoice_seq" placeholder="INV_01" /></div>

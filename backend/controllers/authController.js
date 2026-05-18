@@ -106,3 +106,91 @@ exports.logout = (req, res) => {
   res.clearCookie('token');
   res.json({ ok: true });
 };
+
+exports.updateMe = async (req, res, next) => {
+  try {
+    const allowed = ['full_name'];
+    const sets = [];
+    const values = [];
+    let i = 1;
+    for (const k of allowed) {
+      if (req.body[k] !== undefined) { sets.push(`${k} = $${i++}`); values.push(req.body[k]); }
+    }
+    if (!sets.length) return res.status(400).json({ error: 'nothing to update' });
+    values.push(req.userId);
+    const db = await dbPromise;
+    const { rows } = await db.query(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING id, email, full_name, role`,
+      values
+    );
+    res.json({ user: rows[0] });
+  } catch (err) { next(err); }
+};
+
+const crypto = require('crypto');
+const { sendEmail } = require('../services/emailService');
+const RESET_TTL_MIN = 60;
+
+exports.forgot = async (req, res, next) => {
+  try {
+    const { email } = req.body || {};
+    if (!email) return res.status(400).json({ error: 'email is required' });
+    const db = await dbPromise;
+    const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    const user = rows[0];
+
+    // Non-leaking response: always behave as if the email existed.
+    let devResetUrl = null;
+    if (user) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expires = new Date(Date.now() + RESET_TTL_MIN * 60 * 1000);
+      await db.query(
+        `INSERT INTO password_resets (user_id, token, expires_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at, used_at = NULL`,
+        [user.id, token, expires]
+      );
+
+      const origin = process.env.FRONTEND_ORIGIN?.split(',')[0]?.trim() || `http://localhost:9100`;
+      const resetUrl = `${origin}/auth?reset=${token}`;
+      const result = await sendEmail({
+        to: email,
+        subject: 'Reset your OpeRRa password',
+        text: `Use this link to reset your password (expires in ${RESET_TTL_MIN} minutes):\n\n${resetUrl}\n\nIf you didn't request this, you can ignore this email.`,
+      });
+      if (!result.sent) {
+        // Local/dev path: surface the link in the response and to the server log.
+        console.log(`[auth] password reset link for ${email}: ${resetUrl}`);
+        devResetUrl = resetUrl;
+      }
+    }
+    res.json({ ok: true, ...(devResetUrl ? { devResetUrl } : {}) });
+  } catch (err) { next(err); }
+};
+
+exports.reset = async (req, res, next) => {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) return res.status(400).json({ error: 'token and password required' });
+    if (String(password).length < 8) return res.status(400).json({ error: 'password must be at least 8 characters' });
+    const db = await dbPromise;
+    const { rows } = await db.query(
+      `SELECT pr.user_id, pr.expires_at, pr.used_at
+         FROM password_resets pr WHERE pr.token = $1`,
+      [token]
+    );
+    const r = rows[0];
+    if (!r) return res.status(400).json({ error: 'Invalid or expired token' });
+    if (r.used_at) return res.status(400).json({ error: 'This reset link has already been used' });
+    if (new Date(r.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'This reset link has expired' });
+
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    await db.query('BEGIN');
+    try {
+      await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, r.user_id]);
+      await db.query('UPDATE password_resets SET used_at = NOW() WHERE user_id = $1', [r.user_id]);
+      await db.query('COMMIT');
+    } catch (e) { await db.query('ROLLBACK'); throw e; }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+};

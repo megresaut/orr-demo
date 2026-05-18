@@ -33,6 +33,14 @@ exports.projectAnalytics = async (req, res, next) => {
     const byMonth = new Map(); // 'YYYY-MM' -> { hours, cost }
     const byResource = new Map(); // resource -> { hours, cost }
 
+    const ymOf = d => {
+      if (d instanceof Date) return d.toISOString().slice(0, 7);
+      const s = String(d || '');
+      // Already ISO-like (YYYY-MM-DD…) — slice; otherwise parse.
+      if (/^\d{4}-\d{2}/.test(s)) return s.slice(0, 7);
+      const dd = new Date(s);
+      return Number.isNaN(dd.getTime()) ? s.slice(0, 7) : dd.toISOString().slice(0, 7);
+    };
     for (const e of entriesRes.rows) {
       const taskRate = e.task_code && tasksByCode.get(e.task_code)?.billing_rate
         ? Number(tasksByCode.get(e.task_code).billing_rate)
@@ -41,7 +49,7 @@ exports.projectAnalytics = async (req, res, next) => {
       actualHours += Number(e.hours);
       actualCost += cost;
 
-      const ym = String(e.entry_date).slice(0, 7);
+      const ym = ymOf(e.entry_date);
       if (!byMonth.has(ym)) byMonth.set(ym, { hours: 0, cost: 0 });
       const m = byMonth.get(ym); m.hours += Number(e.hours); m.cost += cost;
 

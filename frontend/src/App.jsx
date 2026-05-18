@@ -7,6 +7,7 @@ import NewProject from './pages/NewProject';
 import Invoices from './pages/Invoices';
 import Settings from './pages/Settings';
 import OrgProfile from './pages/OrgProfile';
+import platformLogo from './assets/operra-logo.svg';
 
 function Shell({ children }) {
   const { user, org, logout } = useAuth();
@@ -15,7 +16,10 @@ function Shell({ children }) {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h1>ORR</h1>
+        <div className="brand">
+          <img src={platformLogo} alt="OpeRRa" className="brand-logo" />
+          <span className="brand-name">OpeRRa</span>
+        </div>
         <nav>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/invoices">Invoices</NavLink>
@@ -23,6 +27,14 @@ function Shell({ children }) {
           <NavLink to="/org">Company</NavLink>
         </nav>
         <div className="org">
+          {org?.logo_url && (
+            <img
+              src={org.logo_url}
+              alt={`${org.name} logo`}
+              className="org-logo"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
           <div><strong>{org?.name}</strong></div>
           <div>{user?.email}</div>
           <div className="muted">Plan: {org?.plan_tier}</div>

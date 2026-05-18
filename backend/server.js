@@ -12,6 +12,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const invoiceRoutes = require('./routes/invoiceRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const publicRoutes = require('./routes/publicRoutes');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', product: 'ORR — Operation, Resource, Revenue' });
 });
 
+app.use('/api/public', publicRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orgs', orgRoutes);
 app.use('/api/settings', settingsRoutes);
@@ -50,6 +52,7 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 app.use('/invoices', express.static(path.join(__dirname, 'invoices')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Single-service deploy: serve the built frontend, with SPA fallback for client routes.
 // Does nothing in dev (Vite serves the frontend from a separate port).
