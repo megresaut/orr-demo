@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import platformLogo from '../assets/operra-logo.svg';
+import platformLogo from '../assets/operra-logo.jpg';
 
 export default function AuthPage() {
   const { login, signup, user } = useAuth();

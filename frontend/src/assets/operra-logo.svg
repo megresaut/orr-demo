@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
-  <!-- placeholder logo: stylized OR with upward arrow, teal -->
-  <circle cx="70" cy="100" r="56" stroke="#21B0BE" stroke-width="22" fill="none"/>
-  <path d="M115 156 L115 60 Q115 44 131 44 L155 44 Q171 44 171 60 Q171 76 155 76 L131 76" stroke="#21B0BE" stroke-width="22" fill="none" stroke-linecap="round"/>
-  <path d="M155 76 L185 175 L155 145 L185 175 L125 175" stroke="#21B0BE" stroke-width="22" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
-  <path d="M145 175 L185 175 L185 135" stroke="#21B0BE" stroke-width="22" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
-</svg>

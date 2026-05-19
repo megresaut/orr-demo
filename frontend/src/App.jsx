@@ -8,7 +8,7 @@ import EditProject from './pages/EditProject';
 import Invoices from './pages/Invoices';
 import Settings from './pages/Settings';
 import OrgProfile from './pages/OrgProfile';
-import platformLogo from './assets/operra-logo.svg';
+import platformLogo from './assets/operra-logo.jpg';
 
 function Shell({ children }) {
   const { user, org, logout } = useAuth();
