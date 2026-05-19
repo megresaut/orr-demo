@@ -53,24 +53,40 @@ export default function NewProject() {
         </form>
       ) : (
         <form onSubmit={onManual} className="card" style={{ maxWidth: 720 }}>
+          <h3 style={{ margin: '0 0 10px' }}>Project</h3>
           <div className="grid grid-2">
-            <div className="field"><label>Project name</label><input name="name" required /></div>
+            <div className="field"><label>Project name *</label><input name="name" required /></div>
             <div className="field"><label>Project code</label><input name="code" placeholder="DDXXX-MM-YYYY" /></div>
             <div className="field"><label>Location</label><input name="location" /></div>
-            <div className="field"><label>Client name</label><input name="client_name" /></div>
-            <div className="field"><label>Client email</label><input name="client_email" type="email" /></div>
-            <div className="field"><label>Client phone</label><input name="client_phone" /></div>
             <div className="field"><label>Start date</label><input name="start_date" type="date" /></div>
             <div className="field"><label>End date</label><input name="end_date" type="date" /></div>
+          </div>
+          <div className="field"><label>Description</label><textarea name="description" rows="2" /></div>
+
+          <h3 style={{ margin: '18px 0 10px' }}>Client / Bill To</h3>
+          <p className="muted" style={{ marginTop: 0 }}>Used as the &ldquo;Bill To&rdquo; block on generated invoices.</p>
+          <div className="grid grid-2">
+            <div className="field"><label>Client name</label><input name="client_name" placeholder="Company name" /></div>
+            <div className="field"><label>Contact person</label><input name="client_contact" placeholder="e.g. Jane Doe, AP Lead" /></div>
+            <div className="field"><label>Client email</label><input name="client_email" type="email" /></div>
+            <div className="field"><label>Client phone</label><input name="client_phone" /></div>
+          </div>
+          <div className="field"><label>Client address</label><textarea name="client_address" rows="2" placeholder="Street, City, State ZIP" /></div>
+
+          <h3 style={{ margin: '18px 0 10px' }}>Billing</h3>
+          <div className="grid grid-2">
             <div className="field">
               <label>Contract amount</label>
               <div className="input-prefix"><span>$</span><input name="contract_amount" type="number" step="0.01" min="0" placeholder="0.00" /></div>
             </div>
-            <div className="field"><label>Overhead multiplier</label><input name="overhead_multiplier" type="number" step="0.01" defaultValue="1.66" /></div>
+            <div className="field">
+              <label>Overhead multiplier</label>
+              <input name="overhead_multiplier" type="number" step="0.01" defaultValue="1.66" />
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>e.g. 1.66 adds 66% overhead on top of subtotal. 1.00 = no overhead.</div>
+            </div>
             <div className="field"><label>Profit %</label><input name="profit_pct" type="number" step="0.1" defaultValue="10" /></div>
             <div className="field"><label>Invoice sequence</label><input name="invoice_seq" placeholder="INV_01" /></div>
           </div>
-          <div className="field"><label>Description</label><textarea name="description" rows="2" /></div>
           {err && <div className="error">{err}</div>}
           <button className="btn" disabled={busy}>{busy ? 'Creating…' : 'Create project'}</button>
         </form>

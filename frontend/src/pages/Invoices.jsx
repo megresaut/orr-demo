@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { formatDate } from '../lib/dates';
 
 function fmt(n) { return `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
@@ -28,7 +29,7 @@ export default function Invoices() {
               <tr key={i.id}>
                 <td>{i.invoice_number}</td>
                 <td>{i.project_code || ''} {i.project_name}</td>
-                <td>{i.period_start} → {i.period_end}</td>
+                <td style={{ whiteSpace: 'nowrap' }}>{formatDate(i.period_start)} → {formatDate(i.period_end)}</td>
                 <td>{fmt(i.total)}</td>
                 <td><span className={`pill ${i.status === 'paid' ? 'green' : 'red'}`}>{i.status}</span></td>
                 <td>

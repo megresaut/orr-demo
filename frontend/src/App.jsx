@@ -4,6 +4,7 @@ import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import ProjectDetail from './pages/ProjectDetail';
 import NewProject from './pages/NewProject';
+import EditProject from './pages/EditProject';
 import Invoices from './pages/Invoices';
 import Settings from './pages/Settings';
 import OrgProfile from './pages/OrgProfile';
@@ -41,7 +42,10 @@ function Shell({ children }) {
           <button className="btn btn-ghost btn-sm" style={{ marginTop: 10 }} onClick={logout}>Sign out</button>
         </div>
       </aside>
-      <main className="main">{children}</main>
+      <main className="main">
+        {children}
+        <footer className="app-footer">© {new Date().getFullYear()} Integr8Works</footer>
+      </main>
     </div>
   );
 }
@@ -57,6 +61,7 @@ function Inner() {
       <Route path="/" element={<Shell><Dashboard /></Shell>} />
       <Route path="/projects" element={<Navigate to="/" replace />} />
       <Route path="/projects/new" element={<Shell><NewProject /></Shell>} />
+      <Route path="/projects/:id/edit" element={<Shell><EditProject /></Shell>} />
       <Route path="/projects/:id" element={<Shell><ProjectDetail /></Shell>} />
       <Route path="/invoices" element={<Shell><Invoices /></Shell>} />
       <Route path="/settings" element={<Shell><Settings /></Shell>} />

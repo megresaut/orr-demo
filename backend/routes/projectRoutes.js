@@ -8,6 +8,8 @@ router.get('/', c.list);
 router.post('/', c.create);
 router.get('/:id', c.get);
 router.patch('/:id', c.update);
+router.post('/:id/delete-mark', c.markDeleted);
+router.post('/:id/restore', c.restore);
 router.delete('/:id', c.remove);
 router.put('/:id/rates', c.replaceRates);
 router.post('/:id/tasks', c.addTask);

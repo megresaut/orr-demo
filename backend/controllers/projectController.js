@@ -4,16 +4,31 @@ const dbPromise = require('../db');
 exports.list = async (req, res, next) => {
   try {
     const db = await dbPromise;
+    const includeDeleted = req.query.includeDeleted === '1';
     const { rows } = await db.query(
       `SELECT p.*,
               (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id) AS invoice_count,
               (SELECT MAX(invoice_number) FROM invoices i WHERE i.project_id = p.id) AS last_invoice_number
-         FROM projects p WHERE p.org_id = $1 ORDER BY p.created_at DESC`,
+         FROM projects p
+        WHERE p.org_id = $1 ${includeDeleted ? '' : 'AND p.deleted_at IS NULL'}
+        ORDER BY p.created_at DESC`,
       [req.orgId]
     );
     res.json(rows);
   } catch (err) { next(err); }
 };
+
+// Guard: any mutation that hits a soft-deleted project should 409 rather than silently
+// modifying a "deleted" row. Restore first if you really need to change it.
+async function ensureNotDeleted(db, orgId, id) {
+  const { rows } = await db.query(
+    `SELECT deleted_at FROM projects WHERE id = $1 AND org_id = $2`,
+    [id, orgId]
+  );
+  if (!rows[0]) return { notFound: true };
+  if (rows[0].deleted_at) return { deleted: true };
+  return { ok: true };
+}
 
 exports.get = async (req, res, next) => {
   try {
@@ -79,6 +94,11 @@ exports.update = async (req, res, next) => {
       'client_name', 'client_contact', 'client_email', 'client_phone', 'client_address',
       'contract_amount', 'allowance', 'overhead_multiplier', 'profit_pct', 'invoice_seq',
     ];
+    const db = await dbPromise;
+    const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
+    if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
+    if (gate.deleted) return res.status(409).json({ error: 'This project is marked deleted. Restore it before editing.' });
+
     const sets = []; const values = []; let i = 1;
     for (const k of allowed) {
       if (req.body[k] !== undefined) { sets.push(`${k} = $${i++}`); values.push(req.body[k]); }
@@ -86,11 +106,36 @@ exports.update = async (req, res, next) => {
     if (!sets.length) return res.status(400).json({ error: 'nothing to update' });
     values.push(req.params.id, req.orgId);
 
-    const db = await dbPromise;
     const { rows } = await db.query(
       `UPDATE projects SET ${sets.join(', ')}, updated_at = NOW()
         WHERE id = $${i} AND org_id = $${i + 1} RETURNING *`,
       values
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Project not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.markDeleted = async (req, res, next) => {
+  try {
+    const db = await dbPromise;
+    const { rows } = await db.query(
+      `UPDATE projects SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND org_id = $2 RETURNING id, deleted_at`,
+      [req.params.id, req.orgId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Project not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.restore = async (req, res, next) => {
+  try {
+    const db = await dbPromise;
+    const { rows } = await db.query(
+      `UPDATE projects SET deleted_at = NULL, updated_at = NOW()
+        WHERE id = $1 AND org_id = $2 RETURNING id, deleted_at`,
+      [req.params.id, req.orgId]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Project not found' });
     res.json(rows[0]);
@@ -108,9 +153,9 @@ exports.remove = async (req, res, next) => {
 exports.addTask = async (req, res, next) => {
   try {
     const db = await dbPromise;
-    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
-      [req.params.id, req.orgId]);
-    if (!proj.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
+    if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
+    if (gate.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
 
     const b = req.body || {};
     if (!b.task_name) return res.status(400).json({ error: 'task_name is required' });
@@ -135,9 +180,9 @@ exports.addTask = async (req, res, next) => {
 exports.addRate = async (req, res, next) => {
   try {
     const db = await dbPromise;
-    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
-      [req.params.id, req.orgId]);
-    if (!proj.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
+    if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
+    if (gate.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
 
     const b = req.body || {};
     if (!b.role) return res.status(400).json({ error: 'role is required' });
@@ -167,9 +212,9 @@ exports.removeRate = async (req, res, next) => {
 exports.replaceRates = async (req, res, next) => {
   try {
     const db = await dbPromise;
-    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
-      [req.params.id, req.orgId]);
-    if (!proj.rows[0]) return res.status(404).json({ error: 'Project not found' });
+    const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
+    if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
+    if (gate.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
 
     await db.query('BEGIN');
     try {

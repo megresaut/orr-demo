@@ -14,6 +14,7 @@ async function loadProjectBundle(db, orgId, projectId, periodStart, periodEnd) {
   const projRes = await db.query(`SELECT * FROM projects WHERE id = $1 AND org_id = $2`, [projectId, orgId]);
   const project = projRes.rows[0];
   if (!project) return null;
+  if (project.deleted_at) return { deleted: true };
 
   const ratesRes = await db.query(`SELECT role, name, rate FROM project_rates WHERE project_id = $1`, [projectId]);
   const tasksRes = await db.query(`SELECT * FROM project_tasks WHERE project_id = $1`, [projectId]);
@@ -40,6 +41,7 @@ exports.preview = async (req, res, next) => {
     const db = await dbPromise;
     const bundle = await loadProjectBundle(db, req.orgId, projectId, startDate, endDate);
     if (!bundle) return res.status(404).json({ error: 'Project not found' });
+    if (bundle.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
     if (!bundle.entries.length) {
       return res.status(400).json({ error: 'No time entries in this period — upload a timesheet first.' });
     }
@@ -57,6 +59,7 @@ exports.previewPdf = async (req, res, next) => {
     const db = await dbPromise;
     const bundle = await loadProjectBundle(db, req.orgId, projectId, startDate, endDate);
     if (!bundle) return res.status(404).json({ error: 'Project not found' });
+    if (bundle.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
     if (!bundle.entries.length) {
       return res.status(400).json({ error: 'No time entries in this period — log time first.' });
     }
@@ -94,6 +97,7 @@ exports.generate = async (req, res, next) => {
     const db = await dbPromise;
     const bundle = await loadProjectBundle(db, req.orgId, projectId, startDate, endDate);
     if (!bundle) return res.status(404).json({ error: 'Project not found' });
+    if (bundle.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
     if (!bundle.entries.length) return res.status(400).json({ error: 'No time entries in this period.' });
 
     const orgRes = await db.query(`SELECT * FROM organizations WHERE id = $1`, [req.orgId]);

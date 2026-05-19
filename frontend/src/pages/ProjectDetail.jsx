@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api';
+import { formatDate as fmtDate } from '../lib/dates';
 import Combobox from '../components/Combobox';
 import PdfModal from '../components/PdfModal';
 import {
@@ -19,12 +20,6 @@ function compareCodes(a, b) {
 }
 
 function fmt(n) { return `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
-function fmtDate(s) {
-  if (!s) return '';
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return String(s);
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-}
 
 // Build a tree of tasks from dotted task codes ("1.01" is parent of "1.01.02").
 // Tasks without a parent in the list become roots. Tasks without a code go in their
@@ -222,6 +217,23 @@ export default function ProjectDetail() {
     await api.post(`/api/invoices/${invId}/mark-paid`);
     await reload();
   }
+  async function markProjectDeleted() {
+    if (!window.confirm(`Mark project "${project.name}" as deleted? It will be hidden from the dashboard and locked from edits, but invoices and history are kept.`)) return;
+    setErr(''); setMsg('');
+    try {
+      await api.post(`/api/projects/${id}/delete-mark`);
+      setMsg('Project marked as deleted.');
+      await reload();
+    } catch (ex) { setErr(ex.message); }
+  }
+  async function restoreProject() {
+    setErr(''); setMsg('');
+    try {
+      await api.post(`/api/projects/${id}/restore`);
+      setMsg('Project restored.');
+      await reload();
+    } catch (ex) { setErr(ex.message); }
+  }
   async function deleteInvoice(inv) {
     const ok = window.confirm(`Delete invoice ${inv.invoice_number}? This removes the row and its xlsx/pdf files.`);
     if (!ok) return;
@@ -359,10 +371,21 @@ export default function ProjectDetail() {
   if (!project) return <div>Loading…</div>;
   const k = analytics?.kpis;
 
+  const isDeleted = !!project.deleted_at;
+
   return (
     <div>
       <div className="muted">{project.code || 'No code'} · {project.client_name || ''}</div>
-      <h1 className="page-title" style={{ marginBottom: 6 }}>{project.name}</h1>
+      <div className="row" style={{ alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
+        <h1 className="page-title" style={{ margin: 0 }}>{project.name}</h1>
+        {isDeleted && <span className="pill red" style={{ fontSize: 13 }}>Deleted</span>}
+        <div style={{ marginLeft: 'auto' }} className="row">
+          {!isDeleted && <Link to={`/projects/${id}/edit`} className="btn btn-sm">Edit project</Link>}
+          {isDeleted
+            ? <button className="btn btn-sm" onClick={restoreProject}>Restore</button>
+            : <button className="btn btn-ghost btn-sm btn-danger-ghost" onClick={markProjectDeleted}>Mark as deleted</button>}
+        </div>
+      </div>
       <div className="muted" style={{ marginBottom: 20 }}>
         {project.start_date || project.end_date ? (
           <>Duration: {fmtDate(project.start_date) || '—'} → {fmtDate(project.end_date) || '—'}</>
@@ -371,6 +394,13 @@ export default function ProjectDetail() {
         )}
         {project.location ? <> · {project.location}</> : null}
       </div>
+      {isDeleted && (
+        <div className="banner" style={{ marginBottom: 16 }}>
+          <strong>This project is marked deleted.</strong> Edits, time entries, and invoice generation are disabled. Click <em>Restore</em> above to re-enable.
+        </div>
+      )}
+      {msg && <div className="success" style={{ marginBottom: 12 }}>{msg}</div>}
+      {err && <div className="error" style={{ marginBottom: 12 }}>{err}</div>}
 
       <div className="grid grid-4">
         <div className="kpi"><div className="l">Budget hrs</div><div className="v">{k?.budget_hours ?? 0}</div></div>
@@ -384,8 +414,8 @@ export default function ProjectDetail() {
           <h2>Upload tasks</h2>
           <p className="muted">From OpeRRa360 task template. Uploading replaces all tasks on this project.</p>
           <form onSubmit={uploadTasks}>
-            <input type="file" name="file" accept=".xlsx" required />
-            <button className="btn btn-sm" style={{ marginLeft: 8 }} disabled={busy}>Upload tasks</button>
+            <input type="file" name="file" accept=".xlsx" required disabled={isDeleted} />
+            <button className="btn btn-sm" style={{ marginLeft: 8 }} disabled={busy || isDeleted}>Upload tasks</button>
           </form>
           {taskMsg && <div className="success">{taskMsg}</div>}
           {taskErr && <div className="error">{taskErr}</div>}
@@ -435,7 +465,7 @@ export default function ProjectDetail() {
               <label>Description</label>
               <input type="text" placeholder="What did you work on?" value={te.description} onChange={e => setTeField('description', e.target.value)} />
             </div>
-            <button className="btn btn-sm" disabled={busy}>Log entry</button>
+            <button className="btn btn-sm" disabled={busy || isDeleted}>Log entry</button>
             {logMsg && <div className="success">{logMsg}</div>}
             {logErr && <div className="error">{logErr}</div>}
           </form>
@@ -453,9 +483,9 @@ export default function ProjectDetail() {
             <label>Period end</label>
             <input type="date" value={period.endDate} onChange={e => setPeriod(p => ({ ...p, endDate: e.target.value }))} />
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={doPreview} disabled={!period.startDate || !period.endDate}>Preview</button>
-          <button className="btn btn-sm" onClick={() => doGenerate(false)} disabled={!period.startDate || !period.endDate || busy}>Generate</button>
-          <button className="btn btn-sm" onClick={() => doGenerate(true)} disabled={!period.startDate || !period.endDate || busy}>Generate & email</button>
+          <button className="btn btn-ghost btn-sm" onClick={doPreview} disabled={!period.startDate || !period.endDate || isDeleted}>Preview</button>
+          <button className="btn btn-sm" onClick={() => doGenerate(false)} disabled={!period.startDate || !period.endDate || busy || isDeleted}>Generate</button>
+          <button className="btn btn-sm" onClick={() => doGenerate(true)} disabled={!period.startDate || !period.endDate || busy || isDeleted}>Generate & email</button>
         </div>
         {invMsg && <div className="success">{invMsg}</div>}
         {invErr && <div className="error">{invErr}</div>}
@@ -526,7 +556,7 @@ export default function ProjectDetail() {
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h2>Tasks ({project.tasks?.length || 0})</h2>
           <div className="row">
-            <button className="btn btn-sm" onClick={() => setTaskAddOpen(v => !v)}>{taskAddOpen ? 'Cancel' : '+ Add task'}</button>
+            <button className="btn btn-sm" onClick={() => setTaskAddOpen(v => !v)} disabled={isDeleted}>{taskAddOpen ? 'Cancel' : '+ Add task'}</button>
             <button className="btn btn-ghost btn-sm" onClick={expandAll}>Expand all</button>
             <button className="btn btn-ghost btn-sm" onClick={collapseAll}>Collapse all</button>
           </div>
@@ -578,7 +608,7 @@ export default function ProjectDetail() {
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h2 style={{ margin: 0 }}>Labor rates / Resources ({project.rates?.length || 0})</h2>
           <div className="row" style={{ gap: 8 }}>
-            <button type="button" className="btn btn-sm" onClick={() => setRateAddOpen(v => !v)}>{rateAddOpen ? 'Cancel' : '+ Add resource'}</button>
+            <button type="button" className="btn btn-sm" onClick={() => setRateAddOpen(v => !v)} disabled={isDeleted}>{rateAddOpen ? 'Cancel' : '+ Add resource'}</button>
             <label className="btn btn-ghost btn-sm" style={{ marginBottom: 0, cursor: 'pointer' }}>
               Upload (.xlsx)
               <input

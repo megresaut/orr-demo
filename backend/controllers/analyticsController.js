@@ -107,7 +107,7 @@ exports.portfolio = async (req, res, next) => {
               (SELECT COALESCE(SUM(hours),0) FROM time_entries t WHERE t.project_id = p.id) AS hours,
               (SELECT COALESCE(SUM(total),0) FROM invoices i WHERE i.project_id = p.id AND i.status='paid') AS paid,
               (SELECT COALESCE(SUM(total),0) FROM invoices i WHERE i.project_id = p.id AND i.status<>'paid') AS unpaid
-         FROM projects p WHERE p.org_id = $1 ORDER BY p.created_at DESC`,
+         FROM projects p WHERE p.org_id = $1 AND p.deleted_at IS NULL ORDER BY p.created_at DESC`,
       [req.orgId]
     );
     const totals = rows.reduce((acc, p) => {
