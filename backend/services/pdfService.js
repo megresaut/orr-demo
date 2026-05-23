@@ -53,8 +53,8 @@ function renderHtml({ org, project, invoiceNumber, period, payload }) {
   const lines = payload.lines.map(l => `
     <tr>
       <td>${escapeHtml(l.description)}</td>
-      <td class="num">${l.hours}</td>
-      <td class="num">${fmt(l.unit_price)}</td>
+      <td class="num">${l.hours == null ? '—' : l.hours}</td>
+      <td class="num">${l.unit_price == null ? '—' : fmt(l.unit_price)}</td>
       <td class="num">${fmt(l.amount)}</td>
     </tr>
   `).join('');
@@ -159,8 +159,8 @@ function renderHtml({ org, project, invoiceNumber, period, payload }) {
       <div class="totals-wrap">
         <div class="totals">
           <div class="row"><span class="l">Subtotal</span><span class="v num">${fmt(payload.subtotal)}</span></div>
-          <div class="row"><span class="l">Overhead (${payload.overhead_multiplier}×)</span><span class="v num">${fmt(payload.overhead)}</span></div>
-          <div class="row"><span class="l">Profit (${payload.profit_pct}%)</span><span class="v num">${fmt(payload.profit)}</span></div>
+          ${Number(payload.overhead_multiplier) !== 1 ? `<div class="row"><span class="l">Overhead (${payload.overhead_multiplier}×)</span><span class="v num">${fmt(payload.overhead)}</span></div>` : ''}
+          ${Number(payload.profit_pct) !== 0 ? `<div class="row"><span class="l">Profit (${payload.profit_pct}%)</span><span class="v num">${fmt(payload.profit)}</span></div>` : ''}
           <div class="row grand"><span class="l">Total Due</span><span class="v num">${fmt(payload.total)}</span></div>
         </div>
       </div>

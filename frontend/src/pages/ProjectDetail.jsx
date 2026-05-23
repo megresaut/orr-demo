@@ -171,6 +171,10 @@ export default function ProjectDetail() {
     () => taskTree.reduce((s, n) => s + (n.rollup?.amount || 0), 0),
     [taskTree]
   );
+  const overheadMult = Number(project?.overhead_multiplier || 1.66);
+  const profitPct = Number(project?.profit_pct || 10);
+  const projectTotalLoaded = projectTotal * overheadMult * (1 + profitPct / 100);
+  const isLumpsum = !!project?.is_lumpsum;
 
   function toggleNode(key) {
     setExpanded(prev => {
@@ -379,6 +383,7 @@ export default function ProjectDetail() {
       <div className="row" style={{ alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
         <h1 className="page-title" style={{ margin: 0 }}>{project.name}</h1>
         {isDeleted && <span className="pill red" style={{ fontSize: 13 }}>Deleted</span>}
+        {isLumpsum && <span className="pill" style={{ fontSize: 13 }}>Lumpsum</span>}
         <div style={{ marginLeft: 'auto' }} className="row">
           {!isDeleted && <Link to={`/projects/${id}/edit`} className="btn btn-sm">Edit project</Link>}
           {isDeleted
@@ -597,6 +602,14 @@ export default function ProjectDetail() {
                 <td colSpan={6} style={{ textAlign: 'right', fontWeight: 600 }}>Project total</td>
                 <td><strong>{fmt(projectTotal)}</strong></td>
               </tr>
+              {!isLumpsum && (
+                <tr style={{ background: 'var(--bg)' }}>
+                  <td colSpan={6} style={{ textAlign: 'right', fontWeight: 600 }}>
+                    Project total with Overhead ({overheadMult}×) and Profit ({profitPct}%)
+                  </td>
+                  <td><strong>{fmt(projectTotalLoaded)}</strong></td>
+                </tr>
+              )}
             </tbody>
           </table>
         ) : (
@@ -609,11 +622,20 @@ export default function ProjectDetail() {
           <h2 style={{ margin: 0 }}>Labor rates / Resources ({project.rates?.length || 0})</h2>
           <div className="row" style={{ gap: 8 }}>
             <button type="button" className="btn btn-sm" onClick={() => setRateAddOpen(v => !v)} disabled={isDeleted}>{rateAddOpen ? 'Cancel' : '+ Add resource'}</button>
-            <label className="btn btn-ghost btn-sm" style={{ marginBottom: 0, cursor: 'pointer' }}>
+            <label
+              className="btn btn-ghost btn-sm"
+              style={{
+                marginBottom: 0,
+                cursor: isDeleted ? 'not-allowed' : 'pointer',
+                opacity: isDeleted ? 0.5 : 1,
+                pointerEvents: isDeleted ? 'none' : 'auto',
+              }}
+            >
               Upload (.xlsx)
               <input
                 type="file"
                 accept=".xlsx"
+                disabled={isDeleted}
                 style={{ display: 'none' }}
                 onChange={async e => {
                   const file = e.target.files?.[0];
@@ -659,7 +681,7 @@ export default function ProjectDetail() {
                 <td>{r.name}</td>
                 <td>{fmt(r.rate)}</td>
                 <td style={{ width: 1, whiteSpace: 'nowrap' }}>
-                  <button className="btn btn-ghost btn-sm btn-danger-ghost" onClick={() => deleteRate(r.id, r.name)}>Remove</button>
+                  <button className="btn btn-ghost btn-sm btn-danger-ghost" onClick={() => deleteRate(r.id, r.name)} disabled={isDeleted}>Remove</button>
                 </td>
               </tr>
             ))}

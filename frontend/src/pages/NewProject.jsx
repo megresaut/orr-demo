@@ -7,6 +7,9 @@ export default function NewProject() {
   const [tab, setTab] = useState('upload');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [isLumpsum, setIsLumpsum] = useState(false);
+  const [overheadMult, setOverheadMult] = useState('1.66');
+  const [profitPct, setProfitPct] = useState('10');
 
   async function onUpload(e) {
     e.preventDefault();
@@ -28,6 +31,8 @@ export default function NewProject() {
       ['contract_amount', 'allowance', 'overhead_multiplier', 'profit_pct'].forEach(k => {
         if (body[k]) body[k] = Number(body[k]);
       });
+      body.is_lumpsum = isLumpsum;
+      if (isLumpsum) { body.overhead_multiplier = 1; body.profit_pct = 0; }
       const proj = await api.post('/api/projects', body);
       nav(`/projects/${proj.id}`);
     } catch (ex) { setErr(ex.message); }
@@ -74,6 +79,14 @@ export default function NewProject() {
           <div className="field"><label>Client address</label><textarea name="client_address" rows="2" placeholder="Street, City, State ZIP" /></div>
 
           <h3 style={{ margin: '18px 0 10px' }}>Billing</h3>
+          <label className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={isLumpsum}
+              onChange={e => setIsLumpsum(e.target.checked)}
+            />
+            <span>Lumpsum project <span className="muted" style={{ fontWeight: 400 }}>(overhead &amp; profit are baked into the contract)</span></span>
+          </label>
           <div className="grid grid-2">
             <div className="field">
               <label>Contract amount</label>
@@ -81,10 +94,32 @@ export default function NewProject() {
             </div>
             <div className="field">
               <label>Overhead multiplier</label>
-              <input name="overhead_multiplier" type="number" step="0.01" defaultValue="1.66" />
-              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>e.g. 1.66 adds 66% overhead on top of subtotal. 1.00 = no overhead.</div>
+              <input
+                name="overhead_multiplier"
+                type="number"
+                step="0.01"
+                value={isLumpsum ? '1' : overheadMult}
+                onChange={e => setOverheadMult(e.target.value)}
+                disabled={isLumpsum}
+              />
+              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                {isLumpsum
+                  ? 'Locked for lumpsum projects.'
+                  : 'e.g. 1.66 adds 66% overhead on top of subtotal. 1.00 = no overhead.'}
+              </div>
             </div>
-            <div className="field"><label>Profit %</label><input name="profit_pct" type="number" step="0.1" defaultValue="10" /></div>
+            <div className="field">
+              <label>Profit %</label>
+              <input
+                name="profit_pct"
+                type="number"
+                step="0.1"
+                value={isLumpsum ? '0' : profitPct}
+                onChange={e => setProfitPct(e.target.value)}
+                disabled={isLumpsum}
+              />
+              {isLumpsum && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Locked for lumpsum projects.</div>}
+            </div>
             <div className="field"><label>Invoice sequence</label><input name="invoice_seq" placeholder="INV_01" /></div>
           </div>
           {err && <div className="error">{err}</div>}

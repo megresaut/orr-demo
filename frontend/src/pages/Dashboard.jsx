@@ -93,7 +93,9 @@ export default function Dashboard() {
       )}
 
       <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
-        <h2 style={{ margin: 0 }}>Projects</h2>
+        <div className="row" style={{ gap: 12, alignItems: 'baseline' }}>
+          <h2 style={{ margin: 0 }}>Projects</h2>
+        </div>
         <div className="row" style={{ flex: 1, justifyContent: 'flex-end', gap: 8 }}>
           <input
             type="search"

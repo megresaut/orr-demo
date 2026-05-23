@@ -60,6 +60,22 @@ exports.projectAnalytics = async (req, res, next) => {
     const budgetHours = tasksRes.rows.reduce((s, t) => s + Number(t.budget_hours || 0), 0);
     const budgetCost = Number(project.contract_amount || 0);
 
+    // Variance @ completion subtracts the *loaded* cost of work delivered — raw labor
+    // grossed up by the project's overhead multiplier and profit margin — not bare hours×rate.
+    // ?? (not ||) so an explicit zero is preserved instead of falling back to the defaults.
+    const overheadMult = Number(project.overhead_multiplier ?? 1.66);
+    const profitPct = Number(project.profit_pct ?? 10);
+    const loadedActualCost = actualCost * overheadMult * (1 + profitPct / 100);
+
+    // Money already invoiced across all statuses — needs to count against contract too,
+    // not just unbilled WIP. total_services_to_date on the project row is unreliable
+    // (invoice deletes don't fully reconcile it), so query invoices directly.
+    const invRes = await db.query(
+      `SELECT COALESCE(SUM(total), 0) AS invoiced FROM invoices WHERE project_id = $1`,
+      [req.params.id]
+    );
+    const invoicedToDate = Number(invRes.rows[0].invoiced || 0);
+
     // Earned value: hours actually completed × budgeted rate (approximation)
     const earnedValue = tasksRes.rows.reduce((s, t) => {
       const billed = Number(t.billed_hours || 0);
@@ -84,8 +100,10 @@ exports.projectAnalytics = async (req, res, next) => {
         remaining_hours: Math.round((budgetHours - actualHours) * 100) / 100,
         budget_cost: budgetCost,
         actual_cost: Math.round(actualCost * 100) / 100,
+        loaded_actual_cost: Math.round(loadedActualCost * 100) / 100,
+        invoiced_to_date: Math.round(invoicedToDate * 100) / 100,
         earned_value: Math.round(earnedValue * 100) / 100,
-        variance_at_completion: Math.round((budgetCost - actualCost) * 100) / 100,
+        variance_at_completion: Math.round((budgetCost - (loadedActualCost + invoicedToDate)) * 100) / 100,
         cpi: actualCost > 0 ? Math.round((earnedValue / actualCost) * 1000) / 1000 : null,
         spi: budgetHours > 0 ? Math.round((actualHours / budgetHours) * 1000) / 1000 : null,
       },
@@ -118,6 +136,10 @@ exports.portfolio = async (req, res, next) => {
       acc.unpaid += Number(p.unpaid || 0);
       return acc;
     }, { contract: 0, delivered: 0, hours: 0, paid: 0, unpaid: 0 });
-    res.json({ projects: rows, totals });
+    const deletedRes = await db.query(
+      `SELECT COUNT(*)::int AS n FROM projects WHERE org_id = $1 AND deleted_at IS NOT NULL`,
+      [req.orgId]
+    );
+    res.json({ projects: rows, totals, deleted_count: deletedRes.rows[0].n });
   } catch (err) { next(err); }
 };

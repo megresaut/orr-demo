@@ -46,8 +46,8 @@ exports.onboarding = async (req, res, next) => {
           parsed.client?.address || null,
           parsed.proposal?.contract_amount || 0,
           parsed.proposal?.allowance || 0,
-          parsed.timeline?.overhead_multiplier || 1.66,
-          parsed.timeline?.profit_pct || 10,
+          parsed.timeline?.overhead_multiplier ?? 1.66,
+          parsed.timeline?.profit_pct ?? 10,
           `${parsed.project.code || 'INV'}_01`,
         ]
       );
@@ -75,11 +75,15 @@ exports.tasks = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file required' });
     const db = await dbPromise;
-    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
+    const proj = await db.query(`SELECT id, deleted_at FROM projects WHERE id = $1 AND org_id = $2`,
       [req.params.projectId, req.orgId]);
     if (!proj.rows[0]) {
       fs.unlink(req.file.path, () => {});
       return res.status(404).json({ error: 'Project not found' });
+    }
+    if (proj.rows[0].deleted_at) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(409).json({ error: 'Project is marked deleted. Restore it before uploading.' });
     }
 
     const tasks = await parseProjectTasks(req.file.path, req.body.sheetName || null);
@@ -111,11 +115,15 @@ exports.rates = async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'file required' });
     const db = await dbPromise;
-    const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND org_id = $2`,
+    const proj = await db.query(`SELECT id, deleted_at FROM projects WHERE id = $1 AND org_id = $2`,
       [req.params.projectId, req.orgId]);
     if (!proj.rows[0]) {
       fs.unlink(req.file.path, () => {});
       return res.status(404).json({ error: 'Project not found' });
+    }
+    if (proj.rows[0].deleted_at) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(409).json({ error: 'Project is marked deleted. Restore it before uploading.' });
     }
 
     const rates = await parseProjectRates(req.file.path, req.body.sheetName || null);

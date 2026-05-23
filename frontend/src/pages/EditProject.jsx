@@ -9,6 +9,7 @@ const TEXT_FIELDS = [
 ];
 const DATE_FIELDS = ['start_date', 'end_date'];
 const NUMBER_FIELDS = ['contract_amount', 'overhead_multiplier', 'profit_pct'];
+const BOOLEAN_FIELDS = ['is_lumpsum'];
 
 function isoSlice(s) {
   // For date inputs: backend may return a Date string or ISO timestamp;
@@ -36,6 +37,7 @@ export default function EditProject() {
         for (const k of TEXT_FIELDS) hydrated[k] = p[k] ?? '';
         for (const k of DATE_FIELDS) hydrated[k] = isoSlice(p[k]);
         for (const k of NUMBER_FIELDS) hydrated[k] = p[k] != null ? String(p[k]) : '';
+        for (const k of BOOLEAN_FIELDS) hydrated[k] = !!p[k];
         setForm(hydrated);
       } catch (e) { setLoadErr(e.message); }
     })();
@@ -54,6 +56,10 @@ export default function EditProject() {
         const n = Number(form[k]);
         body[k] = Number.isFinite(n) ? n : null;
       }
+      for (const k of BOOLEAN_FIELDS) body[k] = !!form[k];
+      // Defensive: server enforces the same, but send neutral values when lumpsum
+      // so the optimistic local state matches what we'll get back.
+      if (body.is_lumpsum) { body.overhead_multiplier = 1; body.profit_pct = 0; }
       await api.patch(`/api/projects/${id}`, body);
       setMsg('Saved.');
       nav(`/projects/${id}`);
@@ -93,6 +99,14 @@ export default function EditProject() {
         <div className="field"><label>Client address</label><textarea rows="2" value={form.client_address} onChange={e => setField('client_address', e.target.value)} placeholder="Street, City, State ZIP" /></div>
 
         <h3 style={{ margin: '18px 0 10px' }}>Billing</h3>
+        <label className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!form.is_lumpsum}
+            onChange={e => setField('is_lumpsum', e.target.checked)}
+          />
+          <span>Lumpsum project <span className="muted" style={{ fontWeight: 400 }}>(overhead &amp; profit are baked into the contract)</span></span>
+        </label>
         <div className="grid grid-2">
           <div className="field">
             <label>Contract amount</label>
@@ -100,10 +114,30 @@ export default function EditProject() {
           </div>
           <div className="field">
             <label>Overhead multiplier</label>
-            <input type="number" step="0.01" value={form.overhead_multiplier} onChange={e => setField('overhead_multiplier', e.target.value)} />
-            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>e.g. 1.66 adds 66% overhead on top of subtotal. 1.00 = no overhead.</div>
+            <input
+              type="number"
+              step="0.01"
+              value={form.is_lumpsum ? '1' : form.overhead_multiplier}
+              onChange={e => setField('overhead_multiplier', e.target.value)}
+              disabled={!!form.is_lumpsum}
+            />
+            <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+              {form.is_lumpsum
+                ? 'Locked for lumpsum projects.'
+                : 'e.g. 1.66 adds 66% overhead on top of subtotal. 1.00 = no overhead.'}
+            </div>
           </div>
-          <div className="field"><label>Profit %</label><input type="number" step="0.1" value={form.profit_pct} onChange={e => setField('profit_pct', e.target.value)} /></div>
+          <div className="field">
+            <label>Profit %</label>
+            <input
+              type="number"
+              step="0.1"
+              value={form.is_lumpsum ? '0' : form.profit_pct}
+              onChange={e => setField('profit_pct', e.target.value)}
+              disabled={!!form.is_lumpsum}
+            />
+            {form.is_lumpsum && <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>Locked for lumpsum projects.</div>}
+          </div>
           <div className="field"><label>Invoice sequence</label><input value={form.invoice_seq} onChange={e => setField('invoice_seq', e.target.value)} placeholder="INV_01" /></div>
         </div>
         {err && <div className="error">{err}</div>}

@@ -5,12 +5,16 @@ exports.list = async (req, res, next) => {
   try {
     const db = await dbPromise;
     const includeDeleted = req.query.includeDeleted === '1';
+    const deletedOnly = req.query.deletedOnly === '1';
+    let deletedFilter = 'AND p.deleted_at IS NULL';
+    if (deletedOnly) deletedFilter = 'AND p.deleted_at IS NOT NULL';
+    else if (includeDeleted) deletedFilter = '';
     const { rows } = await db.query(
       `SELECT p.*,
               (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id) AS invoice_count,
               (SELECT MAX(invoice_number) FROM invoices i WHERE i.project_id = p.id) AS last_invoice_number
          FROM projects p
-        WHERE p.org_id = $1 ${includeDeleted ? '' : 'AND p.deleted_at IS NULL'}
+        WHERE p.org_id = $1 ${deletedFilter}
         ORDER BY p.created_at DESC`,
       [req.orgId]
     );
@@ -65,13 +69,18 @@ exports.get = async (req, res, next) => {
 exports.create = async (req, res, next) => {
   try {
     const b = req.body || {};
+    const isLumpsum = b.is_lumpsum === true;
+    // Lumpsum projects bill at a flat amount per task; overhead/profit are baked
+    // into the contract, so they must be neutralized regardless of client input.
+    const overheadMult = isLumpsum ? 1 : (b.overhead_multiplier ?? 1.66);
+    const profitPct = isLumpsum ? 0 : (b.profit_pct ?? 10);
     const db = await dbPromise;
     const { rows } = await db.query(
       `INSERT INTO projects
         (org_id, name, code, location, description, start_date, end_date,
          client_name, client_contact, client_email, client_phone, client_address,
-         contract_amount, allowance, overhead_multiplier, profit_pct, invoice_seq)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         contract_amount, allowance, overhead_multiplier, profit_pct, invoice_seq, is_lumpsum)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [
         req.orgId, b.name, b.code || null, b.location || null, b.description || null,
@@ -79,8 +88,9 @@ exports.create = async (req, res, next) => {
         b.client_name || null, b.client_contact || null, b.client_email || null,
         b.client_phone || null, b.client_address || null,
         b.contract_amount || 0, b.allowance || 0,
-        b.overhead_multiplier || 1.66, b.profit_pct || 10,
+        overheadMult, profitPct,
         b.invoice_seq || `${b.code || 'INV'}_01`,
+        isLumpsum,
       ]
     );
     res.json(rows[0]);
@@ -93,15 +103,24 @@ exports.update = async (req, res, next) => {
       'name', 'code', 'location', 'description', 'start_date', 'end_date',
       'client_name', 'client_contact', 'client_email', 'client_phone', 'client_address',
       'contract_amount', 'allowance', 'overhead_multiplier', 'profit_pct', 'invoice_seq',
+      'is_lumpsum',
     ];
     const db = await dbPromise;
     const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
     if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
     if (gate.deleted) return res.status(409).json({ error: 'This project is marked deleted. Restore it before editing.' });
 
+    // Server is the source of truth — if the patch sets is_lumpsum=true, force
+    // overhead/profit to neutral values regardless of what the client sent.
+    const body = { ...req.body };
+    if (body.is_lumpsum === true) {
+      body.overhead_multiplier = 1;
+      body.profit_pct = 0;
+    }
+
     const sets = []; const values = []; let i = 1;
     for (const k of allowed) {
-      if (req.body[k] !== undefined) { sets.push(`${k} = $${i++}`); values.push(req.body[k]); }
+      if (body[k] !== undefined) { sets.push(`${k} = $${i++}`); values.push(body[k]); }
     }
     if (!sets.length) return res.status(400).json({ error: 'nothing to update' });
     values.push(req.params.id, req.orgId);
@@ -200,6 +219,10 @@ exports.addRate = async (req, res, next) => {
 exports.removeRate = async (req, res, next) => {
   try {
     const db = await dbPromise;
+    const gate = await ensureNotDeleted(db, req.orgId, req.params.id);
+    if (gate.notFound) return res.status(404).json({ error: 'Project not found' });
+    if (gate.deleted) return res.status(409).json({ error: 'Project is marked deleted.' });
+
     const { rowCount } = await db.query(
       `DELETE FROM project_rates WHERE id = $1 AND project_id = $2 AND org_id = $3`,
       [req.params.rateId, req.params.id, req.orgId]

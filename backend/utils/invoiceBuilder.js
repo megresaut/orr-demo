@@ -49,6 +49,7 @@ function buildInvoicePayload({ project, rates, tasks, entries }) {
     if (e.entry_date > g.last_date) g.last_date = e.entry_date;
   }
 
+  const isLumpsum = !!project.is_lumpsum;
   const lines = [];
   let subtotal = 0;
   for (const g of groups.values()) {
@@ -60,18 +61,20 @@ function buildInvoicePayload({ project, rates, tasks, entries }) {
     if (!unitPrice) unitPrice = rateForResource(g.resource_name, rates);
     const amount = Math.round(g.hours * unitPrice * 100) / 100;
     subtotal += amount;
+    // For lumpsum projects, hours/rate are internal-only — surface only the amount.
     lines.push({
       description: `${g.resource_name} — ${g.task_name || g.task_code || 'Work'} (${isoDate(g.first_date)} → ${isoDate(g.last_date)})`,
       task_code: g.task_code,
       resource_name: g.resource_name,
-      hours: Math.round(g.hours * 100) / 100,
-      unit_price: unitPrice,
+      hours: isLumpsum ? null : Math.round(g.hours * 100) / 100,
+      unit_price: isLumpsum ? null : unitPrice,
       amount,
     });
   }
 
-  const overheadMult = Number(project.overhead_multiplier || 1.66);
-  const profitPct = Number(project.profit_pct || 10);
+  // ?? (not ||) so an explicit zero for overhead/profit is preserved.
+  const overheadMult = Number(project.overhead_multiplier ?? 1.66);
+  const profitPct = Number(project.profit_pct ?? 10);
   const subtotalRounded = Math.round(subtotal * 100) / 100;
   const afterOverhead = Math.round(subtotalRounded * overheadMult * 100) / 100;
   const overhead = Math.round((afterOverhead - subtotalRounded) * 100) / 100;
@@ -82,6 +85,7 @@ function buildInvoicePayload({ project, rates, tasks, entries }) {
     project_id: project.id,
     project_name: project.name,
     project_code: project.code,
+    is_lumpsum: isLumpsum,
     client: {
       name: project.client_name,
       contact: project.client_contact,
@@ -110,8 +114,12 @@ async function writeInvoiceXlsx(payload, invoiceNumber, outDir) {
   payload.lines.forEach(l => sh.addRow(l));
   sh.addRow({});
   sh.addRow({ description: 'Subtotal', amount: payload.subtotal });
-  sh.addRow({ description: `Overhead (${payload.overhead_multiplier}×)`, amount: payload.overhead });
-  sh.addRow({ description: `Profit (${payload.profit_pct}%)`, amount: payload.profit });
+  if (Number(payload.overhead_multiplier) !== 1) {
+    sh.addRow({ description: `Overhead (${payload.overhead_multiplier}×)`, amount: payload.overhead });
+  }
+  if (Number(payload.profit_pct) !== 0) {
+    sh.addRow({ description: `Profit (${payload.profit_pct}%)`, amount: payload.profit });
+  }
   sh.addRow({ description: 'TOTAL', amount: payload.total }).font = { bold: true };
 
   const safe = (invoiceNumber || 'invoice').replace(/[^\w.-]+/g, '_');
