@@ -121,7 +121,7 @@ const PROJECTS = [
     ],
   },
   {
-    name: 'Atlas / City of Pittsburgh Police Firing Range',
+    name: 'Mt. Andes',
     code: '643-02-2025',
     location: 'Pittsburgh, PA',
     description: '3C Site Civil — firing range site/civil work',

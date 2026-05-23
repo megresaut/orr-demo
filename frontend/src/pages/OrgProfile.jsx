@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
@@ -129,6 +130,22 @@ export default function OrgProfile() {
         {profileErr && <div className="error">{profileErr}</div>}
         <button className="btn btn-sm" disabled={profileBusy}>{profileBusy ? 'Saving…' : 'Save profile'}</button>
       </form>
+
+      <div className="card" style={{ maxWidth: 720 }}>
+        <h2>Open on another device</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Scan this QR code with a phone or tablet camera to open OpeRRa on that device.
+        </p>
+        <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ background: '#fff', padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
+            <QRCodeSVG value={window.location.origin} size={148} />
+          </div>
+          <div>
+            <div className="muted">App address</div>
+            <div style={{ fontWeight: 600, wordBreak: 'break-all' }}>{window.location.origin}</div>
+          </div>
+        </div>
+      </div>
 
       <div className="card" style={{ maxWidth: 720 }}>
         <h2>Trial / billing</h2>
