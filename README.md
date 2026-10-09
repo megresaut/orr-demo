@@ -1,139 +1,98 @@
-# ORR — Operation, Resource, Revenue (MVP)
+# OpeRRa: Operation, Resource, Revenue
 
-Multi-tenant SaaS skeleton derived from the Cosmos AMQ integration POC, generalized
-per the Integr8Works deck (`Operra360` / ORR). MVP scope:
+**Project billing for professional-services firms: from spreadsheets to finished invoices.**
 
-- Self-serve **org signup** + 7-day trial (no Stripe yet)
-- **Excel-only data ingestion**:
-  - Project onboarding workbook (slide 24) → project + client + rates
-  - Project task template (slide 25) → tasks with budget/billing
-  - Employee project time template (slide 26) → time entries
-- **Invoice generation** with overhead multiplier + profit %, XLSX + PDF, optional email
-- **Per-tenant branding** (company name, logo, address on invoices)
-- **Connector picker** UI (Asana/Trello/Minute7/Deputy/QB/Xero/Wave shown but only Excel is wired)
-- **Analytics**: portfolio summary, per-project burn-up, resource utilization
-- **Dunning banner** for tenants without CC on file (25th–30th of month)
+OpeRRa (ORR) turns the spreadsheets a services firm already keeps into **client-ready invoices and live project financials**. Those spreadsheets are project setup sheets, task budgets, and employee timesheets. Upload the workbooks, and OpeRRa builds the project and tracks hours against budget. It also applies the firm's overhead and profit rates, then produces branded invoices as Excel and PDF, ready to email.
 
-Not in MVP: Stripe billing, Asana/Minute7/QuickBooks/Wave/etc. live integrations,
-plan-tier enforcement, Asana-style chart libraries (we ship raw burn-up data — wire a chart in v2).
+It's a multi-tenant SaaS. Each firm signs up, brands its own workspace, and manages its own projects.
 
-## Repo layout
+---
 
-```
-orr/
-├── backend/                 Node + Express + Postgres
-│   ├── server.js
-│   ├── db.js
-│   ├── migrations/
-│   │   └── 001_init.sql
-│   ├── scripts/migrate.js
-│   ├── controllers/
-│   ├── routes/
-│   ├── services/
-│   │   ├── excelProjectService.js     ← parses onboarding + task templates
-│   │   ├── excelTimesheetService.js   ← parses employee project time template
-│   │   ├── pdfService.js              ← Puppeteer PDF (HTML fallback if unavailable)
-│   │   └── emailService.js            ← SMTP (no-op if unconfigured)
-│   ├── middleware/auth.js
-│   └── utils/
-│       ├── invoiceBuilder.js          ← line-item + overhead/profit math
-│       └── invoiceSeq.js              ← invoice number bumping
-└── frontend/                Vite + React
-    └── src/pages/{AuthPage,Dashboard,Projects,NewProject,ProjectDetail,Invoices,Settings,OrgProfile}
-```
+## The problem
 
-## Local setup
+Firms that bill by the hour against project budgets (engineering, architecture, consulting) usually run billing out of a pile of Excel files:
+- one sheet to set up the project,
+- one for the task budget,
+- a timesheet per employee,
+- a manual calculation each period to apply rates, overhead, and markup.
 
-### 1) Postgres
+Answering "how much of the budget have we burned?" or "what do we invoice this month?" means stitching those together by hand. OpeRRa does that stitching.
 
-```sh
-createdb orr
-createuser orr -P    # set password 'orr' to match defaults
-psql orr -c "GRANT ALL ON DATABASE orr TO orr;"
-```
+## What it does
 
-### 2) Backend
+### Projects from a spreadsheet
+- **Project onboarding workbook → project.** Upload the firm's standard onboarding workbook. OpeRRa reads the project information, client, timeline, proposal, and labor rates, and creates the project. A manual form is also available.
+- **Task template → task budget.** Upload the task sheet to load every task with its code, budgeted hours, and billing rate. Column detection is flexible, so a client's slightly edited copy of the template still imports. Tasks can be added one at a time later without re-uploading.
+- **Lump-sum projects** are supported alongside hourly ones.
+- Projects can be edited, soft-deleted, and restored.
 
-```sh
-cd backend
-cp .env.example .env       # adjust DB creds, JWT_SECRET, optional SMTP
-npm install
-npm run migrate            # applies migrations/001_init.sql
-npm run dev                # http://localhost:5060
-```
+### Time tracking from timesheets
+- Upload an **employee timesheet** and each row becomes a time entry.
+- Hours come from start and end times, with a fallback to the hours written in the description.
+- Entries are matched to tasks by the task code in the description (e.g. `1.01.02`).
 
-### 3) Frontend
+### Live project financials
+On each project page:
+- budget vs. actual by task,
+- project total with overhead and profit applied,
+- invoiced to date,
+- variance at completion.
 
-```sh
-cd frontend
-npm install
-npm run dev                # http://localhost:5173
-```
+Across all projects:
+- a **portfolio dashboard** with KPIs and charts,
+- per-project **burn-up**,
+- **resource utilization**.
 
-The frontend dev server proxies `/api/*` to `http://localhost:5060`.
+### Invoice generation
+- Pick a billing period, **preview** the invoice, then **generate** it.
+- Rates come from the task's billing rate if it has one, otherwise the employee's labor rate.
+- Totals apply the firm's **overhead multiplier** and **profit percentage**:
 
-## Quick smoke test
+  ```
+  subtotal  = Σ hours × rate
+  overhead  = subtotal × (overhead_multiplier − 1)     default multiplier 1.66
+  profit    = (subtotal + overhead) × profit_pct       default 10%
+  total     = subtotal + overhead + profit
+  ```
 
-1. Open http://localhost:5173, click **Start 7-day trial**, create an org.
-2. **Company** → fill in name/email/address (shown on invoices).
-3. **Settings** → confirm Excel is selected for all three connector layers.
-4. **Projects → New project**:
-   - Either upload an OpeRRa360 onboarding workbook, or fill the manual form.
-5. Open the project, upload a **task template** and a **timesheet**.
-6. Pick a period and click **Preview** → **Generate** (or **Generate & email** if SMTP is set).
-7. **Invoices** lists the invoice with links to the .xlsx and .pdf, and a "Mark paid" button.
+- Output is **Excel and PDF**, branded with the firm's logo, name, and address. Invoices can be emailed straight to the client.
+- Invoices are numbered automatically, and the Invoices page tracks each one's status, including **mark as paid**.
 
-## How the Excel parsers work
+### Workspace & account
+- **Self-serve signup** with a 7-day trial.
+- Per-firm **branding**: logo, company name, address, and bill-to details.
+- User profile and password reset.
+- **Mobile access via QR code**: scan to open your workspace on a phone.
+- **Connector catalog** in Settings showing project management, time tracking, and accounting connections (Asana, Trello, Minute7, Deputy, QuickBooks, Xero, Wave). **Excel is the only one wired up today**; the rest are on the roadmap.
 
-- **Onboarding** (`services/excelProjectService.js#parseProjectOnboarding`) anchors on the
-  section headers `Project Information`, `Client Information`, `Project Timeline`,
-  `Proposal Information`, `Resources and Labor` and reads the first non-`Eg.` row beneath each.
-- **Tasks** (`parseProjectTasks`) auto-detects columns by header label (`Task Name`,
-  `Section/Column`/`Task Code`, `Budget Hrs`, `Billed Hrs`, `Billing Rate`, etc.) so
-  small label drift in a customer's copy still works.
-- **Timesheet** (`parseTimesheet`) reads `Date / StartTime / EndTime / ResourceName /
-  ResourceTaskDescription` rows. Hours = end − start, with a fallback to the `-Nhr-`
-  fragment embedded in the description (slide 26 format). Task code is extracted from
-  the first dotted code in the description (`16001-04-2026-1.01.02-…` → `1.01.02`).
+## Roadmap
 
-## Invoice math
+| When | What |
+|---|---|
+| Now | Multi-tenant platform with Excel-first ingestion (this repo) |
+| Next | Stripe trial-to-paid billing and plan limits (a card-on-file field and a dunning banner already exist) |
+| Later | Live connectors: Wave, Asana, Minute7, QuickBooks, then Trello, Deputy, Xero |
 
-`utils/invoiceBuilder.js`:
+## Tech
 
-```
-subtotal      = Σ line.amount       where line.amount = hours × rate
-afterOverhead = subtotal × overhead_multiplier   (default 1.66)
-overhead      = afterOverhead − subtotal
-profit        = afterOverhead × profit_pct/100  (default 10%)
-total         = afterOverhead + profit
+- **Backend:** Node.js, Express, PostgreSQL. Excel parsing for the three templates. Puppeteer for PDF invoices. SMTP for email.
+- **Frontend:** React and Vite, with Recharts for analytics.
+- **Hosting:** Docker on Railway (`railway.json`).
+- Derived from the Cosmos AMQ integration proof of concept and rebuilt around an Excel-first, multi-tenant data model. `DECISIONS.md` records product decisions made during client testing.
+
+---
+
+## Setup
+
+Requires Node 20+ and PostgreSQL.
+
+```bash
+createdb orr && createuser orr -P            # password 'orr' matches the defaults
+
+cd backend && cp .env.example .env           # DB creds, JWT_SECRET, optional SMTP
+npm install && npm run migrate && npm run dev   # http://localhost:5060
+
+cd ../frontend && npm install && npm run dev    # http://localhost:5173 (proxies /api)
 ```
 
-Rate selection per line:
-1. If the timesheet line has a `task_code` and that task has a `billing_rate`, use it.
-2. Else look up the resource name in the project's labor rates.
-3. Else fall back to the project's first labor rate.
-
-## What's stubbed for the deck but not wired
-
-- **Stripe** trial → auto-charge: `organizations.cc_on_file` field exists, dunning
-  banner endpoint exists; no Stripe SDK yet.
-- **Plan tier enforcement** (slide 8 limits): `organizations.plan_tier` is stored,
-  no quota checks.
-- **3rd-party connectors**: connector preference is stored
-  (`pm_connector` / `time_connector` / `acct_connector`); the Settings UI shows the
-  catalog but only `excel` is functional. Each connector layer is a clear seam for
-  adding `asanaService` / `minute7Service` / `quickbooksService` later.
-- **Per-tenant logo**: stored as `logo_url` (string). Upload-and-store-in-S3
-  is roadmap.
-
-## Roadmap pointers (from slide 10)
-
-- 2026 H1 — multi-tenant generalisation (this scaffold) + Stripe trial billing
-- 2026 H2 — Wave connector + tech-partner download channels for Asana / Minute7 / QB
-- 2027 — Trello / Deputy / Xero connectors
-
-## Source
-
-Forked from `cosmos/amq_integration_api` and rewritten around an Excel-first,
-multi-tenant data model. The original Asana / Minute7 / QuickBooks services
-remain in that repo if you want to port them over as second-class connectors.
+Then open the app, start a trial, fill in your company profile, and create a project from an onboarding workbook. Upload a task template and a timesheet, then generate an invoice.
